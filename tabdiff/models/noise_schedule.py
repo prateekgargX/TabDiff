@@ -131,7 +131,7 @@ class LogLinearNoise_PerColumn(nn.Module):
     self.num_categories = num_categories
     self.k_offset = k_offset
 
-    self.k_raw = nn.Parameter(torch.tensor([k_init] * self.num_categories, dtype=torch.float32) + torch.randn(num_categories))
+    self.k_raw = nn.Parameter(torch.tensor([k_init] * self.num_categories, dtype=torch.float32))
 
   def k(self):
     return torch.nn.functional.softplus(self.k_raw) + self.k_offset
@@ -157,4 +157,46 @@ class LogLinearNoise_PerColumn(nn.Module):
     # -log(1-t^k) == -log(alpha(t))
     total_noise = -torch.log1p(-((1 - self.eps_max - self.eps_min) * t.pow(k) + self.eps_min))
 
+    return total_noise
+
+class LogSigmoidNoise_PerColumn(nn.Module):
+
+  def __init__(self, num_categories, eps_max=1e-3, eps_min=1e-5, b_fixed = 2, **kwargs):
+
+    super().__init__()
+    self.eps_max = eps_max
+    self.eps_min = eps_min
+    # Use softplus to ensure k is positive
+    self.num_categories = num_categories
+
+    self.b_raw = b_fixed
+    self.k_raw = nn.Parameter(torch.zeros(num_categories))
+
+  def k(self):
+    return self.raw_k
+  
+  def b(self):
+    return self.raw_b
+  
+  def rate_noise(self, t, noise_fn=None):
+    """
+    Compute rate noise for all categories with broadcasting. sigm'(t)
+    t: [batch_size]
+    Returns: [batch_size, num_categories]
+    """
+    b = self.b()  # Shape: [num_categories]
+    rate = b/(self.t_transform(t)*(1-self.t_transform(t))) * torch.sigmoid(self.raw_linear(t))  # Shape: [batch_size, num_categories]
+    return rate
+
+  def raw_linear(self, t):
+    k = self.k()  # Shape: [1]
+    b = self.b()  # Shape: [num_categories]     
+    return b * (torch.logit(self.t_transform(t), eps=1e-12) + k)
+
+  def t_transform(self,t):
+    return (1 - self.eps_max - self.eps_min)*t + self.eps_min
+
+  def total_noise(self, t, noise_fn=None):
+    # returns -log(alpha(t))  = sigm(t)
+    total_noise = torch.nn.functional.softplus(self.raw_linear(t))  # Shape: [batch_size, num_categories]
     return total_noise

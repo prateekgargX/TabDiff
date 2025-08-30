@@ -89,6 +89,8 @@ class UnifiedCtimeDiffusion(torch.nn.Module):
             self.cat_schedule = LogLinearNoise(**noise_schedule_params)
         elif self.cat_scheduler == 'log_linear_per_column':
             self.cat_schedule = LogLinearNoise_PerColumn(num_categories = len(num_classes), **noise_schedule_params)
+        elif self.cat_scheduler == 'log_sigmoid_per_column':
+            self.cat_schedule = LogSigmoidNoise_PerColumn(num_categories = len(num_classes), **noise_schedule_params)
         else:
             raise NotImplementedError(f"The noise schedule--{self.cat_scheduler}-- is not implemented for discrete data at CTIME ")
 
