@@ -122,7 +122,7 @@ class PowerMeanNoise_PerColumn(nn.Module):
 
 class LogLinearNoise_PerColumn(nn.Module):
 
-  def __init__(self, num_categories, eps_max=1e-3, eps_min=1e-5, k_init=-6, k_offset=1, **kwargs):
+  def __init__(self, num_categories, eps_max=1e-3, eps_min=1e-5, k_init=0, k_offset=1, **kwargs):
 
     super().__init__()
     self.eps_max = eps_max
@@ -130,7 +130,8 @@ class LogLinearNoise_PerColumn(nn.Module):
     # Use softplus to ensure k is positive
     self.num_categories = num_categories
     self.k_offset = k_offset
-    self.k_raw = nn.Parameter(torch.tensor([k_init] * self.num_categories, dtype=torch.float32))
+
+    self.k_raw = nn.Parameter(torch.tensor([k_init] * self.num_categories, dtype=torch.float32) + torch.randn(num_categories))
 
   def k(self):
     return torch.nn.functional.softplus(self.k_raw) + self.k_offset
@@ -143,15 +144,17 @@ class LogLinearNoise_PerColumn(nn.Module):
     """
     k = self.k()  # Shape: [num_categories]
 
-    numerator = (1 - self.eps_max - self.eps_min) * k * t.pow(k - 1)
-    denominator = 1 - ((1 - self.eps_max - self.eps_min) * t.pow(k) + self.eps_min)
+    numerator = (1 - self.eps_max - self.eps_min) * k * t.pow(k - 1) # k * t^(k-1) == -alpha'(t)
+    denominator = 1 - ((1 - self.eps_max - self.eps_min) * t.pow(k) + self.eps_min) # 1 - t^k == alpha(t)
     rate = numerator / denominator  # Shape: [batch_size, num_categories]
 
     return rate
 
   def total_noise(self, t, noise_fn=None):
+    # returns -log(alpha(t)) 
     k = self.k()  # Shape: [num_categories]
     
+    # -log(1-t^k) == -log(alpha(t))
     total_noise = -torch.log1p(-((1 - self.eps_max - self.eps_min) * t.pow(k) + self.eps_min))
 
     return total_noise

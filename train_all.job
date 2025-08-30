@@ -31,4 +31,4 @@ source activate tabdiff   # or conda activate tabdiff, depending on shell config
 # Run your training script
 srun export TQDM_DISABLE=1 # Disable tqdm output in the terminal
 srun echo "Running TabDiff on dataset: $DATASET"
-srun python main.py --dataname $DATASET --mode train --no_wandb --exp_name tabdiffbench
+srun python main.py --dataname $DATASET --mode train --no_wandb --exp_name tabdiffbench_sigmoid_sch --deterministic
